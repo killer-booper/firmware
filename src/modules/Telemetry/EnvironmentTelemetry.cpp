@@ -33,6 +33,10 @@ namespace graphics
 extern void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *titleStr, bool force_no_invert,
                              bool show_date);
 }
+#if defined(ARCH_ESP32)
+#include "Sensor/AnalogSensor.h"    // Added for Analog sensor 
+#endif
+
 #if __has_include(<Adafruit_AHTX0.h>)
 #include "Sensor/AHT10.h"
 #endif
@@ -242,6 +246,24 @@ void EnvironmentTelemetryModule::i2cScanFinished(ScanI2C *i2cScanner)
 #if __has_include(<BH1750_WE.h>)
     addSensor<BH1750Sensor>(i2cScanner, ScanI2C::DeviceType::BH1750);
 #endif
+#if defined(ARCH_ESP32)
+   
+     LOG_WARN("========== ADDING TDS SENSOR ==========");
+     
+      // Add analog sensor (not I2C, so we add it directly)
+    // GPIO7 (board label "18") is ADC1_CH6 - most reliable pin on Heltec V3
+    // For TDS sensor with your calibrated values:
+    sensors.push_front(AnalogSensor::createTDSSensor(7, 25.0));  // GPIO7, 25°C
+    
+    // For soil moisture sensor (10-bit ADC):
+    // sensors.push_front(AnalogSensor::createSoilMoistureSensor(7));
+    
+    // For custom linear sensor:
+    // sensors.push_front(AnalogSensor::createLinearSensor(7, 100.0, 0.0, "Custom"));
+    
+    LOG_WARN("========== TDS SENSOR ADDED ==========");
+    
+#endif
 
 #endif
 }
@@ -262,9 +284,9 @@ int32_t EnvironmentTelemetryModule::runOnce()
         without having to configure it from the PythonAPI or WebUI.
     */
 
-    // moduleConfig.telemetry.environment_measurement_enabled = 1;
-    // moduleConfig.telemetry.environment_screen_enabled = 1;
-    // moduleConfig.telemetry.environment_update_interval = 15;
+    moduleConfig.telemetry.environment_measurement_enabled = 1;
+     moduleConfig.telemetry.environment_screen_enabled = 1;
+     moduleConfig.telemetry.environment_update_interval = 15;
 
     if (!(moduleConfig.telemetry.environment_measurement_enabled || moduleConfig.telemetry.environment_screen_enabled ||
           ENVIRONMENTAL_TELEMETRY_MODULE_ENABLE)) {
@@ -278,10 +300,12 @@ int32_t EnvironmentTelemetryModule::runOnce()
 
         if (moduleConfig.telemetry.environment_measurement_enabled || ENVIRONMENTAL_TELEMETRY_MODULE_ENABLE) {
             LOG_INFO("Environment Telemetry: init");
-
+ 	
+       
             // check if we have at least one sensor
             if (!sensors.empty()) {
                 result = DEFAULT_SENSOR_MINIMUM_WAIT_TIME_BETWEEN_READS;
+                 LOG_WARN("Sensors empty? %d", sensors.empty());
             }
 
 #ifdef T1000X_SENSOR_EN
@@ -535,10 +559,19 @@ bool EnvironmentTelemetryModule::getEnvironmentTelemetry(meshtastic_Telemetry *m
     m->which_variant = meshtastic_Telemetry_environment_metrics_tag;
     m->variant.environment_metrics = meshtastic_EnvironmentMetrics_init_zero;
 
+    LOG_WARN("========== getEnvironmentTelemetry DEBUG ==========");
+  
+    
     for (TelemetrySensor *sensor : sensors) {
+        LOG_WARN("Processing sensor: %s", sensor ? "valid" : "NULL");
         valid = valid && sensor->getMetrics(m);
         hasSensor = true;
+        LOG_WARN("After sensor:  hasSensor=%d",  hasSensor);
     }
+
+    // ... rest of code ...
+    
+    
 
 #ifndef T1000X_SENSOR_EN
     if (ina219Sensor.hasSensor()) {
@@ -688,6 +721,7 @@ AdminMessageHandleResult EnvironmentTelemetryModule::handleAdminMessageForModule
     }
 #endif
     return result;
+
 }
 
 #endif
