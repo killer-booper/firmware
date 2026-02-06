@@ -51,7 +51,7 @@ This fork adds support for generic analog sensors on ESP32-based Meshtastic devi
 
 1. **Clone this fork:**
 ```bash
-   git clone https://github.com/YOUR_USERNAME/firmware.git
+   git clone https://github.com/killer-booper/firmware.git
    cd firmware
    git checkout analog-sensor-support
 ```
